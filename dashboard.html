@@ -263,6 +263,17 @@
             </div>
 
 
+            <div class="group" id="interviewDateGroup" style="display:none;">
+
+                <label>Interview Date</label>
+
+                <input
+                    type="date"
+                    id="interviewDate">
+
+            </div>
+
+
             <div class="group">
 
                 <label>Status</label>
@@ -408,6 +419,11 @@ function showAddForm() {
     document.getElementById("date").value =
         getTodayDate();
 
+    document.getElementById("interviewDate").value = "";
+
+    document.getElementById("interviewDateGroup").style.display =
+        "none";
+
     document.getElementById("status").value =
         "Applied";
 
@@ -434,6 +450,11 @@ function hideForm() {
 
     document.getElementById("date").value = "";
 
+    document.getElementById("interviewDate").value = "";
+
+    document.getElementById("interviewDateGroup").style.display =
+        "none";
+
     document.getElementById("status").value =
         "Applied";
 
@@ -458,10 +479,21 @@ async function saveOrUpdate() {
     const status =
         document.getElementById("status").value;
 
+    const interviewDate =
+        document.getElementById("interviewDate").value;
+
 
     if (!company || !role || !date) {
 
         alert("Please fill all fields");
+
+        return;
+
+    }
+
+    if (status === "Interview" && !interviewDate) {
+
+        alert("Please select the Interview Date");
 
         return;
 
@@ -530,6 +562,47 @@ async function saveOrUpdate() {
 
 
         if (data.success) {
+
+            const savedId =
+                editingId !== null
+                    ? editingId
+                    : Date.now();
+
+            if (status === "Interview" && interviewDate) {
+
+                const reminders =
+                    JSON.parse(
+                        localStorage.getItem("interviewReminders") || "{}"
+                    );
+
+                reminders[savedId] = {
+                    date: interviewDate
+                };
+
+                localStorage.setItem(
+                    "interviewReminders",
+                    JSON.stringify(reminders)
+                );
+
+                if ("Notification" in window) {
+                    Notification.requestPermission();
+                }
+
+            } else {
+
+                const reminders =
+                    JSON.parse(
+                        localStorage.getItem("interviewReminders") || "{}"
+                    );
+
+                delete reminders[savedId];
+
+                localStorage.setItem(
+                    "interviewReminders",
+                    JSON.stringify(reminders)
+                );
+
+            }
 
             alert(
                 editingId !== null
@@ -823,6 +896,25 @@ async function editJob(id) {
         ).value =
             job.status;
 
+        const reminders =
+            JSON.parse(
+                localStorage.getItem("interviewReminders") || "{}"
+            );
+
+        document.getElementById(
+            "interviewDate"
+        ).value =
+            reminders[id]
+                ? reminders[id].date
+                : "";
+
+        document.getElementById(
+            "interviewDateGroup"
+        ).style.display =
+            job.status === "Interview"
+                ? "block"
+                : "none";
+
 
         document.getElementById(
             "jobForm"
@@ -885,6 +977,18 @@ async function deleteJob(id) {
 
         if (data.success) {
 
+            const reminders =
+                JSON.parse(
+                    localStorage.getItem("interviewReminders") || "{}"
+                );
+
+            delete reminders[id];
+
+            localStorage.setItem(
+                "interviewReminders",
+                JSON.stringify(reminders)
+            );
+
             alert(
                 "Application deleted successfully!"
             );
@@ -913,6 +1017,82 @@ async function deleteJob(id) {
     }
 
 }
+
+
+/* =========================
+   INTERVIEW DATE + NOTIFICATION
+========================= */
+
+document.getElementById("status").addEventListener(
+    "change",
+    function () {
+
+        document.getElementById(
+            "interviewDateGroup"
+        ).style.display =
+            this.value === "Interview"
+                ? "block"
+                : "none";
+    }
+);
+
+function checkInterviewNotifications() {
+
+    if (
+        !("Notification" in window) ||
+        Notification.permission !== "granted"
+    ) {
+        return;
+    }
+
+    const reminders =
+        JSON.parse(
+            localStorage.getItem("interviewReminders") || "{}"
+        );
+
+    const now = new Date();
+
+    const today =
+        now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0");
+
+    if (now.getHours() < 9) {
+        return;
+    }
+
+    Object.keys(reminders).forEach(id => {
+
+        const reminder = reminders[id];
+
+        if (reminder.date !== today) {
+            return;
+        }
+
+        const notificationKey =
+            "interviewNotified_" + id + "_" + today;
+
+        if (localStorage.getItem(notificationKey)) {
+            return;
+        }
+
+        new Notification("Interview Reminder", {
+            body: "You have an interview today. Good luck!"
+        });
+
+        localStorage.setItem(
+            notificationKey,
+            "true"
+        );
+    });
+}
+
+checkInterviewNotifications();
+
+setInterval(
+    checkInterviewNotifications,
+    60 * 1000
+);
 
 
 /* =========================
